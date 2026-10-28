@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gazole Rhône</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Prix du gazole dans le Rhône</h1>
+    <label>Commune
+      <select id="commune"><option value="">Toutes les communes</option></select>
+    </label>
+    <p id="resume" aria-live="polite">Chargement des prix…</p>
+  </header>
+  <main>
+    <ol id="liste"></ol>
+    <div id="carte"></div>
+  </main>
+  <footer>Données : prix-carburants.gouv.fr (Licence Ouverte 2.0), mises à jour toutes les 10 min environ.</footer>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

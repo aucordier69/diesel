@@ -1,0 +1,64 @@
+:root {
+  --vert: #2e9e4f;
+  --orange: #e8a317;
+  --rouge: #d93c3c;
+  --fond: #f6f7f9;
+  --texte: #1c2330;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  font-family: system-ui, sans-serif;
+  background: var(--fond);
+  color: var(--texte);
+}
+
+header { padding: 12px 16px; background: #fff; border-bottom: 1px solid #dde1e6; }
+h1 { font-size: 1.15rem; margin: 0 0 8px; }
+label { display: block; font-size: 0.85rem; }
+select { width: 100%; margin-top: 4px; padding: 10px; font-size: 1rem; }
+#resume { margin: 8px 0 0; font-size: 0.85rem; }
+
+/* Téléphone : la carte au-dessus, la liste en dessous */
+main { flex: 1; min-height: 0; display: flex; flex-direction: column-reverse; }
+#carte { flex: 0 0 40%; }
+#liste { flex: 1; overflow-y: auto; margin: 0; padding: 0; list-style: none; }
+
+#liste li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e4e7eb;
+  background: #fff;
+  cursor: pointer;
+}
+#liste li:hover { background: #eef3fb; }
+.rang { width: 1.8rem; color: #6b7480; font-size: 0.85rem; }
+.infos { flex: 1; min-width: 0; }
+.infos strong { display: block; }
+.infos small { color: #6b7480; }
+.prix { font-weight: 700; font-size: 1.1rem; padding: 4px 10px; border-radius: 8px; color: #fff; }
+.vert { background: var(--vert); }
+.orange { background: var(--orange); }
+.rouge { background: var(--rouge); }
+
+.pastille {
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 3px rgba(0, 0, 0, 0.5);
+}
+
+footer { padding: 6px 16px; font-size: 0.7rem; color: #6b7480; background: #fff; }
+
+/* Grand écran : liste à gauche, carte à droite */
+@media (min-width: 800px) {
+  main { flex-direction: row; }
+  #liste { flex: 0 0 380px; }
+  #carte { flex: 1; }
+}
