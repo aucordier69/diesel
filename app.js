@@ -32,7 +32,12 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; contributeurs OpenStreetMap · Prix : prix-carburants.gouv.fr (Licence Ouverte 2.0)',
 }).addTo(carte);
 const calque = L.layerGroup().addTo(carte);
+const calqueCommune = L.layerGroup().addTo(carte);   // repère de la commune cherchée à l'accueil
 
+const ZOOM_COMMUNE = 13;       // les pastilles-prix y sont déjà affichées
+const CLE_ACCUEIL = 'accueil-vu';
+
+let zoneChoisie = null;        // commune cherchée avant l'arrivée des prix : ajusterCarte() la respecte une fois
 let stations = [];
 let entrees = [];          // { station, classe, marqueur, bouton }
 let choisie = null;
@@ -120,6 +125,12 @@ function carteVisible() {
 
 function ajusterCarte() {
   carte.invalidateSize();
+  if (zoneChoisie) {
+    carte.setView([zoneChoisie.lat, zoneChoisie.lon], ZOOM_COMMUNE, { animate: false });
+    zoneChoisie = null;
+    ajusterAuAffichage = false;
+    return;
+  }
   let retenues = entrees;
   if (premierAffichage) {
     const rhone = entrees.filter((e) => e.station.code_departement === DEPARTEMENT_DE_DEPART);
@@ -188,6 +199,7 @@ function majDepartements() {
   boutonsDepartements.querySelectorAll('button').forEach((b) =>
     b.setAttribute('aria-pressed', String(departementsActifs.has(b.dataset.code))));
   premierAffichage = false;
+  oublierZone();
   construireCommunes();
   afficher();
 }
@@ -328,6 +340,7 @@ function demarrer() {
 
 selectCommune.addEventListener('change', () => {
   premierAffichage = false;
+  oublierZone();
   afficher();
 });
 carte.on('zoomend', () => {
@@ -341,6 +354,7 @@ carte.on('zoomend', () => {
 boutonEffacer.addEventListener('click', () => {
   selectCommune.value = '';
   premierAffichage = false;
+  oublierZone();
   afficher();
   selectCommune.focus();   // le bouton vient de disparaître : le focus ne doit pas se perdre
 });
@@ -349,5 +363,150 @@ telephone.addEventListener('change', () => {
   carte.invalidateSize();
 });
 
+/* ---------- Accueil ---------- */
+
+const titreAccueil = document.getElementById('accueil-titre');
+const formAccueil = document.getElementById('accueil-form');
+const champAccueil = document.getElementById('accueil-commune');
+const boutonAccueilRecherche = formAccueil.querySelector('button[type="submit"]');
+const messageAccueil = document.getElementById('accueil-message');
+const boutonAccueilFermer = document.getElementById('accueil-fermer');
+const boutonAide = document.getElementById('aide');
+// Tant que l'accueil est ouvert, le reste de la page n'est ni focalisable ni lisible par un lecteur d'écran
+const zonesDerriere = ['.entete', 'main', '.vues', 'footer'].map((s) => document.querySelector(s));
+
+const accueilOuvert = () => !document.documentElement.classList.contains('accueil-vu');
+
+function ecrireVu() {
+  try { localStorage.setItem(CLE_ACCUEIL, '1'); } catch (e) { /* stockage bloqué : l'accueil reviendra, sans gravité */ }
+}
+
+function ouvrirAccueil() {
+  document.documentElement.classList.remove('accueil-vu');
+  zonesDerriere.forEach((z) => { z.inert = true; });
+  messageAccueil.replaceChildren();
+  titreAccueil.focus();   // pas le champ : sur téléphone, le clavier cacherait le texte
+}
+
+function fermerAccueil() {
+  ecrireVu();
+  document.documentElement.classList.add('accueil-vu');
+  zonesDerriere.forEach((z) => { z.inert = false; });
+  boutonAide.focus();
+}
+
+function paragraphe(texte, classe) {
+  const p = document.createElement('p');
+  p.textContent = texte;
+  if (classe) p.className = classe;
+  return p;
+}
+
+const normaliser = (t) => t.normalize('NFD').replace(/[̀-ͯ]/g, '')
+  .toLowerCase().replace(/[-'’]/g, ' ').replace(/\s+/g, ' ').trim();
+
+// geo.api.gouv.fr : un appel par département de la zone, pour que les petites communes
+// ne soient pas noyées parmi les homonymes du reste de la France
+async function chercherCommune(texte) {
+  const controle = new AbortController();
+  const minuteur = setTimeout(() => controle.abort(), 6000);
+  try {
+    const reponses = await Promise.all(CODES.map(async (code) => {
+      const params = new URLSearchParams({
+        nom: texte,
+        codeDepartement: code,
+        fields: 'nom,centre,departement,population',
+        boost: 'population',
+        limit: 5,
+      });
+      const reponse = await fetch(`https://geo.api.gouv.fr/communes?${params}`, { signal: controle.signal });
+      if (!reponse.ok) throw new Error(`Erreur ${reponse.status}`);
+      return reponse.json();
+    }));
+    const cherche = normaliser(texte);
+    const exacte = (c) => (normaliser(c.nom) === cherche ? 1 : 0);
+    return reponses.flat()
+      .filter((c) => c.centre)
+      .sort((a, b) => exacte(b) - exacte(a) || (b.population || 0) - (a.population || 0))
+      .slice(0, 6);
+  } finally {
+    clearTimeout(minuteur);
+  }
+}
+
+function oublierZone() {
+  calqueCommune.clearLayers();
+  zoneChoisie = null;
+}
+
+function zoomerSur(commune) {
+  const [lon, lat] = commune.centre.coordinates;
+  fermerAccueil();
+  if (telephone.matches) montrerVue('carte');
+  premierAffichage = false;
+  oublierZone();
+  if (!stations.length) zoneChoisie = { lat, lon };   // les prix arrivent : ne pas rezoomer sur le Rhône
+  carte.invalidateSize();
+  carte.setView([lat, lon], ZOOM_COMMUNE, { animate: false });
+  ajusterAuAffichage = !stations.length;
+  L.circleMarker([lat, lon], { radius: 9, color: '#fff', weight: 3, fillColor: '#1d4ed8', fillOpacity: 1 })
+    .bindTooltip(commune.nom, { permanent: true, direction: 'top', offset: [0, -8], className: 'repere-commune' })
+    .addTo(calqueCommune);
+}
+
+function proposer(communes) {
+  const propositions = document.createElement('div');
+  propositions.className = 'propositions';
+  communes.forEach((c) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = `${c.nom} (${c.departement.nom})`;
+    b.addEventListener('click', () => zoomerSur(c));
+    propositions.appendChild(b);
+  });
+  messageAccueil.replaceChildren(paragraphe('Plusieurs communes correspondent. Laquelle ?'), propositions);
+}
+
+async function envoyerAccueil(evenement) {
+  evenement.preventDefault();
+  const texte = champAccueil.value.trim();
+  if (!texte) {
+    messageAccueil.replaceChildren(paragraphe('Écris le nom d’une commune, ou entre directement dans l’application.'));
+    return;
+  }
+  boutonAccueilRecherche.disabled = true;
+  boutonAccueilRecherche.textContent = 'Recherche…';
+  let trouvees;
+  try {
+    trouvees = await chercherCommune(texte);
+  } catch (e) {
+    messageAccueil.replaceChildren(paragraphe('Impossible de chercher cette commune pour l’instant. Tu peux entrer dans l’application.'));
+    return;
+  } finally {
+    boutonAccueilRecherche.disabled = false;
+    boutonAccueilRecherche.textContent = 'Zoomer sur ma commune';
+  }
+  if (!trouvees.length) {
+    messageAccueil.replaceChildren(
+      paragraphe('Connais-tu ta géographie ?', 'accueil-erreur'),
+      paragraphe('Cette commune n’est pas dans le Rhône ni dans les départements limitrophes.'),
+    );
+    return;
+  }
+  const cherche = normaliser(texte);
+  const exactes = trouvees.filter((c) => normaliser(c.nom) === cherche);
+  const candidates = exactes.length ? exactes : trouvees;
+  if (candidates.length === 1) zoomerSur(candidates[0]);
+  else proposer(candidates);
+}
+
+formAccueil.addEventListener('submit', envoyerAccueil);
+boutonAccueilFermer.addEventListener('click', fermerAccueil);
+boutonAide.addEventListener('click', ouvrirAccueil);
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && accueilOuvert()) fermerAccueil();
+});
+
 construireDepartements();
+if (accueilOuvert()) ouvrirAccueil();
 demarrer();

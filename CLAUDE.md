@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Ce que c'est
 
-Site statique sans build (`index.html`, `style.css`, `app.js`) : prix du gazole des stations de 5 départements (Ain 01, Isère 38, Loire 42, Rhône 69, Saône-et-Loire 71), en liste et sur une carte Leaflet, avec filtres département et commune. Titre : « Le fioul des chouquettes ». Les utilisateurs et les principes produit sont dans `PRODUCT.md` : à lire avant tout travail de design.
+Site statique sans build (`index.html`, `style.css`, `app.js`) : prix du gazole des stations de 5 départements (Ain 01, Isère 38, Loire 42, Rhône 69, Saône-et-Loire 71), en liste et sur une carte Leaflet, avec filtres département et commune. Titre : « La pétrolette des chouquettes ». Les utilisateurs et les principes produit sont dans `PRODUCT.md` : à lire avant tout travail de design.
 
 ## Commandes
 
@@ -22,6 +22,7 @@ Tout le comportement est dans `app.js`.
 - **Ordre des départements** : garder `LISTE_DEPARTEMENTS` en tableau ; un objet à clés numériques (`'38'`) se réordonne tout seul.
 - **Carte** : Leaflet 1.9.4 (cdnjs). Points sous le zoom 12, pastilles avec le prix à partir de 12. `premierAffichage` fait s'ouvrir la carte sur le Rhône ; tout changement de filtre la recadre sur ce qui est affiché (`ajusterCarte`). Sur téléphone, la carte est masquée en vue Liste : elle doit être `invalidateSize()` puis recadrée au passage en vue Carte (`ajusterAuAffichage`).
 - **Mise en page** : mobile d'abord ; au-dessus de 800 px, liste de 420 px à gauche et carte à droite. Sous 800 px (téléphone) : filtre département masqué en CSS (et `toutAfficherSurTelephone()` rallume tous les départements si l'écran passe en mode téléphone), bascule Liste/Carte flottante en bas (`position: fixed`), pied de page masqué (le crédit des prix est dans l'attribution Leaflet et dans un `li.credit` en bas de la liste).
+- **Accueil** (`#accueil`, section « Accueil » de `app.js`) : plein écran à la première visite, mémorisé par la clé `localStorage` `accueil-vu` (un petit script dans le `<head>` pose la classe `accueil-vu` sur `<html>` pour éviter l'éclair ; pour retester, vider cette clé). Le bouton « ? » le rouvre. Pendant qu'il est ouvert, `inert` est posé sur l'en-tête, `main`, la bascule et le pied de page. La commune saisie est cherchée sur `geo.api.gouv.fr` (un appel par département de la zone, sinon les homonymes du reste de la France noient les petites communes), puis la carte zoome à `ZOOM_COMMUNE` sans filtrer la liste. Les prix se chargent derrière l'accueil : si la recherche aboutit avant, `zoneChoisie` empêche `ajusterCarte()` de rezoomer sur le Rhône à leur arrivée. Le repère de la commune (`calqueCommune`) disparaît via `oublierZone()` au premier changement de filtre.
 - **Commune** : le bouton `#effacer` (« × Toutes ») n'est visible que si une commune est choisie ; il remet le menu à vide, recadre la carte et redonne le focus au menu.
 
 ## Conventions

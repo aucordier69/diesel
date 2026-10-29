@@ -31,12 +31,14 @@ Data fetched live in the browser on every open from data.economie.gouv.fr (Licen
 - Ranked list (cheapest first) with price tiers green / orange / red relative to the Rhône range.
 - Department toggle buttons (all on by default, desktop only: on phones every department is always shown), then a commune selector limited to the chosen departments, with a "× Toutes" button next to it that resets the commune in one tap; the map opens centred on the Rhône. Clicking a station focuses the map and opens its popup (name, address, price, update date).
 - Map right of the list on desktop, above the list on phone.
+- First visit: a full-screen welcome explains the purpose (diesel prices in the Rhône and bordering departments, refreshed about every 10 minutes) and offers either to type a commune (the map zooms on it, the list keeps every station) or to enter with "J'ai compris". An unknown or out-of-zone commune gets "Connais-tu ta géographie ?". The welcome is remembered in `localStorage` (`accueil-vu`) and can be reopened with the "?" button.
+- Commune lookup uses geo.api.gouv.fr (public, no key); the typed text is the only user data that leaves the browser.
 - Fuel: gazole only. Language: French.
 - Must keep working without a server; no API key.
 
 ## Brand Commitments
 
-None established. Title "Le fioul des chouquettes" (the user's wording; the project repo is called "diesel").
+None established. Title "La pétrolette des chouquettes" (the user's wording; the project repo is called "diesel"). Tone of voice: informal "tu" ("Retrouve le prix du gazole…", "Connais-tu ta géographie ?").
 
 ## Evidence on Hand
 
