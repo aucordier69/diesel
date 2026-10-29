@@ -34,7 +34,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 const calque = L.layerGroup().addTo(carte);
 const calqueCommune = L.layerGroup().addTo(carte);   // repère de la commune cherchée à l'accueil
 
-const ZOOM_COMMUNE = 13;       // les pastilles-prix y sont déjà affichées
+const ZOOM_COMMUNE = 15;       // quelques rues autour du centre de la commune ; pastilles-prix affichées
 const CLE_ACCUEIL = 'accueil-vu';
 
 let zoneChoisie = null;        // commune cherchée avant l'arrivée des prix : ajusterCarte() la respecte une fois
