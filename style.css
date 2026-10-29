@@ -1,64 +1,254 @@
+/* Scène : un conducteur à l'arrêt, téléphone en main, soleil direct.
+   Fond clair, contrastes forts, prix en très gros. */
+
 :root {
-  --vert: #2e9e4f;
-  --orange: #e8a317;
-  --rouge: #d93c3c;
-  --fond: #f6f7f9;
-  --texte: #1c2330;
+  --encre: #10262b;
+  --encre-douce: #cfe0e0;
+  --fond: #eef1f0;
+  --surface: #ffffff;
+  --trait: #d3dbd9;
+  --texte: #14232a;
+  --texte-doux: #4a5b60;
+  --accent: #0b5c66;
+  --accent-pale: #dcecee;
+  --vert: #1b7a3e;
+  --orange: #a8500a;
+  --rouge: #b3261e;
+  --rayon: 10px;
+  color-scheme: light;
+  accent-color: var(--accent);
 }
 
 * { box-sizing: border-box; }
 
+html, body { height: 100%; }
+
 body {
   margin: 0;
-  height: 100vh;
   display: flex;
   flex-direction: column;
-  font-family: system-ui, sans-serif;
+  height: 100dvh;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 1rem;
+  line-height: 1.4;
   background: var(--fond);
   color: var(--texte);
 }
 
-header { padding: 12px 16px; background: #fff; border-bottom: 1px solid #dde1e6; }
-h1 { font-size: 1.15rem; margin: 0 0 8px; }
-label { display: block; font-size: 0.85rem; }
-select { width: 100%; margin-top: 4px; padding: 10px; font-size: 1rem; }
-#resume { margin: 8px 0 0; font-size: 0.85rem; }
+::selection { background: var(--accent); color: #fff; }
 
-/* Téléphone : la carte au-dessus, la liste en dessous */
-main { flex: 1; min-height: 0; display: flex; flex-direction: column-reverse; }
-#carte { flex: 0 0 40%; }
-#liste { flex: 1; overflow-y: auto; margin: 0; padding: 0; list-style: none; }
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
 
-#liste li {
+/* En-tête */
+.entete {
+  padding: 12px 16px calc(12px);
+  padding-top: max(12px, env(safe-area-inset-top));
+  background: var(--encre);
+  color: #fff;
+}
+h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  line-height: 1.1;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+h1 span { color: #7fd0d8; }
+#resume { margin: 4px 0 0; font-size: 0.875rem; color: var(--encre-douce); }
+
+.champ { display: block; margin-top: 12px; }
+.champ span {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--encre-douce);
+}
+select {
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  font: inherit;
+  color: var(--texte);
+  background: var(--surface);
+  border: 2px solid transparent;
+  border-radius: var(--rayon);
+}
+select:hover { border-color: #7fd0d8; }
+.entete :focus-visible { outline-color: #7fd0d8; }
+
+/* Bascule Liste / Carte (téléphone) */
+.vues {
   display: flex;
+  gap: 4px;
+  padding: 8px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--trait);
+}
+.vues button {
+  flex: 1;
+  height: 44px;
+  font: inherit;
+  font-weight: 700;
+  color: var(--texte-doux);
+  background: transparent;
+  border: 2px solid var(--trait);
+  border-radius: var(--rayon);
+  cursor: pointer;
+  transition: background-color 0.15s ease-out, color 0.15s ease-out, border-color 0.15s ease-out;
+}
+.vues button:hover { border-color: var(--accent); color: var(--accent); }
+.vues button[aria-pressed="true"] {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Zone principale */
+main { flex: 1; min-height: 0; display: flex; }
+#liste, #carte { flex: 1; min-width: 0; }
+main[data-vue="liste"] #carte { display: none; }
+main[data-vue="carte"] #liste { display: none; }
+
+/* Liste */
+#liste {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--surface);
+  scrollbar-color: var(--trait) transparent;
+}
+#liste li { border-bottom: 1px solid var(--trait); }
+
+.ligne {
+  display: grid;
+  grid-template-columns: 2rem 1fr auto;
   align-items: center;
   gap: 12px;
+  width: 100%;
+  min-height: 72px;
   padding: 12px 16px;
-  border-bottom: 1px solid #e4e7eb;
-  background: #fff;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  background: transparent;
+  border: 0;
   cursor: pointer;
+  transition: background-color 0.15s ease-out;
 }
-#liste li:hover { background: #eef3fb; }
-.rang { width: 1.8rem; color: #6b7480; font-size: 0.85rem; }
-.infos { flex: 1; min-width: 0; }
-.infos strong { display: block; }
-.infos small { color: #6b7480; }
-.prix { font-weight: 700; font-size: 1.1rem; padding: 4px 10px; border-radius: 8px; color: #fff; }
+.ligne:hover { background: #f1f6f6; }
+.ligne:focus-visible { outline-offset: -3px; }
+.ligne[aria-current="true"] { background: var(--accent-pale); box-shadow: inset 0 0 0 2px var(--accent); }
+
+.rang { font-size: 0.875rem; font-weight: 700; color: var(--texte-doux); font-variant-numeric: tabular-nums; }
+.infos { min-width: 0; }
+.ville { display: block; font-weight: 700; overflow-wrap: anywhere; }
+.adresse { display: block; font-size: 0.875rem; color: var(--texte-doux); text-transform: capitalize; overflow-wrap: anywhere; }
+.fraicheur { display: block; margin-top: 2px; font-size: 0.75rem; color: var(--texte-doux); }
+.fraicheur.ancien { color: var(--rouge); font-weight: 700; }
+.meilleur {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--vert);
+  border: 1.5px solid var(--vert);
+  border-radius: 4px;
+  vertical-align: 1px;
+}
+
+.prix {
+  min-width: 5.2rem;
+  padding: 6px 10px 5px;
+  text-align: center;
+  color: #fff;
+  border-radius: var(--rayon);
+  font-variant-numeric: tabular-nums;
+}
+.prix b { display: block; font-size: 1.5rem; line-height: 1.05; font-weight: 800; letter-spacing: -0.01em; }
+.prix small { display: block; font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; opacity: 0.95; }
 .vert { background: var(--vert); }
 .orange { background: var(--orange); }
 .rouge { background: var(--rouge); }
 
-.pastille {
-  border-radius: 50%;
-  border: 2px solid #fff;
-  box-shadow: 0 0 3px rgba(0, 0, 0, 0.5);
+/* Chargement et erreur */
+.squelette { height: 72px; background: linear-gradient(90deg, #f1f4f3 0%, #e4e9e8 50%, #f1f4f3 100%); background-size: 200% 100%; animation: balayage 1.2s ease-in-out infinite; }
+@keyframes balayage { to { background-position: -200% 0; } }
+.message { padding: 24px 16px; text-align: center; }
+.message p { margin: 0 0 12px; }
+.message button {
+  height: 44px;
+  padding: 0 20px;
+  font: inherit;
+  font-weight: 700;
+  color: #fff;
+  background: var(--accent);
+  border: 0;
+  border-radius: var(--rayon);
+  cursor: pointer;
 }
 
-footer { padding: 6px 16px; font-size: 0.7rem; color: #6b7480; background: #fff; }
+/* Carte */
+#carte { background: #dfe5e3; }
+.pastille, .pastille-prix {
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(16, 38, 43, 0.45);
+}
+.pastille { border-radius: 50%; }
+.pastille-prix {
+  display: grid;
+  place-items: center;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  color: #fff;
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+  transition: transform 0.15s ease-out;
+}
+.choisie { border-color: var(--encre); border-width: 3px; transform: scale(1.25); }
+
+.leaflet-container { font: inherit; }
+.leaflet-bar a { width: 44px; height: 44px; line-height: 44px; font-size: 1.25rem; color: var(--encre); }
+.leaflet-bar { border: 0; box-shadow: 0 1px 6px rgba(16, 38, 43, 0.35); }
+.leaflet-control-attribution { font-size: 0.6875rem; }
+.leaflet-popup-content-wrapper { border-radius: var(--rayon); box-shadow: 0 4px 14px rgba(16, 38, 43, 0.3); }
+.leaflet-popup-content { margin: 12px 16px; line-height: 1.4; }
+.popup-prix { display: block; margin: 4px 0; font-size: 1.5rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.popup small { color: var(--texte-doux); }
+
+footer {
+  padding: 6px 16px calc(6px + env(safe-area-inset-bottom));
+  font-size: 0.6875rem;
+  color: var(--texte-doux);
+  background: var(--surface);
+  border-top: 1px solid var(--trait);
+}
 
 /* Grand écran : liste à gauche, carte à droite */
 @media (min-width: 800px) {
-  main { flex-direction: row; }
-  #liste { flex: 0 0 380px; }
+  .vues { display: none; }
+  .entete {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 16px 24px;
+  }
+  .champ { margin-top: 0; width: 320px; }
+  main[data-vue] #carte, main[data-vue] #liste { display: block; }
+  #liste { flex: 0 0 420px; }
   #carte { flex: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .squelette { animation: none; }
+  * { transition: none !important; }
 }
