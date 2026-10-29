@@ -29,14 +29,14 @@ Data fetched live in the browser on every open from data.economie.gouv.fr (Licen
 ## Capabilities and Constraints
 
 - Ranked list (cheapest first) with price tiers green / orange / red relative to the Rhône range.
-- Department toggle buttons (all on by default), then a commune selector limited to the chosen departments; the map opens centred on the Rhône. Clicking a station focuses the map and opens its popup (name, address, price, update date).
+- Department toggle buttons (all on by default, desktop only: on phones every department is always shown), then a commune selector limited to the chosen departments, with a "× Toutes" button next to it that resets the commune in one tap; the map opens centred on the Rhône. Clicking a station focuses the map and opens its popup (name, address, price, update date).
 - Map right of the list on desktop, above the list on phone.
 - Fuel: gazole only. Language: French.
 - Must keep working without a server; no API key.
 
 ## Brand Commitments
 
-None established. Title "Gazole Rhône-Alpes" (the user's wording, although Saône-et-Loire is in Bourgogne); the project repo is called "diesel".
+None established. Title "Le fioul des chouquettes" (the user's wording; the project repo is called "diesel").
 
 ## Evidence on Hand
 

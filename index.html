@@ -3,26 +3,32 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#10262b">
-  <title>Gazole Rhône-Alpes</title>
+  <meta name="theme-color" content="#ffffff">
+  <title>Le fioul des chouquettes</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header class="entete">
     <div class="titre">
-      <h1>Gazole <span>Rhône-Alpes</span></h1>
+      <h1>Le fioul des <span>chouquettes</span></h1>
       <p id="resume" aria-live="polite">Chargement des prix…</p>
     </div>
     <div class="filtres">
-      <div class="champ" role="group" aria-labelledby="lib-departements">
-        <span id="lib-departements">Départements</span>
+      <div class="champ champ-departements" role="group" aria-labelledby="lib-departements">
+        <span class="etiquette" id="lib-departements">Départements</span>
         <div id="departements" class="departements"></div>
       </div>
-      <label class="champ">
-        <span>Commune</span>
-        <select id="commune"><option value="">Toutes les communes</option></select>
-      </label>
+      <div class="champ">
+        <label class="etiquette" for="commune">Commune</label>
+        <div class="commune-ligne">
+          <select id="commune"><option value="">Toutes les communes</option></select>
+          <button type="button" id="effacer" hidden aria-label="Afficher toutes les communes">
+            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false"><path d="M3 3l10 10M13 3L3 13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+            Toutes
+          </button>
+        </div>
+      </div>
     </div>
   </header>
 

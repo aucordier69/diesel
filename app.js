@@ -2,7 +2,7 @@ const API = 'https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/pri
 const PAGE = 100;
 const ZOOM_PRIX = 12;      // à partir de ce zoom, la pastille affiche le prix
 const JOURS_ANCIEN = 3;    // un prix plus vieux est signalé en toutes lettres
-const COULEURS = { vert: '#1b7a3e', orange: '#a8500a', rouge: '#b3261e' };
+const COULEURS = { vert: '#15803d', orange: '#b45309', rouge: '#b91c1c' };
 const NOMS_PALIER = { vert: 'Bas', orange: 'Moyen', rouge: 'Haut' };
 
 // Le Rhône et les départements qui le touchent
@@ -19,6 +19,7 @@ const DEPARTEMENT_DE_DEPART = '69';
 
 const liste = document.getElementById('liste');
 const selectCommune = document.getElementById('commune');
+const boutonEffacer = document.getElementById('effacer');
 const boutonsDepartements = document.getElementById('departements');
 const resume = document.getElementById('resume');
 const principal = document.querySelector('main');
@@ -28,7 +29,7 @@ const telephone = window.matchMedia('(max-width: 799px)');
 const carte = L.map('carte', { zoomControl: true }).setView([45.76, 4.84], 10);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 18,
-  attribution: '&copy; contributeurs OpenStreetMap',
+  attribution: '&copy; contributeurs OpenStreetMap · Prix : prix-carburants.gouv.fr (Licence Ouverte 2.0)',
 }).addTo(carte);
 const calque = L.layerGroup().addTo(carte);
 
@@ -96,9 +97,9 @@ function icone(entree, zoom) {
   if (zoom >= ZOOM_PRIX) {
     return L.divIcon({
       className: '',
-      html: `<div class="pastille-prix${choix}" style="background:${COULEURS[classe]};width:56px;height:28px">${virgule(station.gazole_prix)}</div>`,
-      iconSize: [56, 28],
-      iconAnchor: [28, 14],
+      html: `<div class="pastille-prix${choix}" style="width:70px;height:28px"><i style="background:${COULEURS[classe]}"></i>${virgule(station.gazole_prix)}</div>`,
+      iconSize: [70, 28],
+      iconAnchor: [35, 14],
     });
   }
   return L.divIcon({
@@ -181,9 +182,7 @@ function construireDepartements() {
   });
 }
 
-function basculerDepartement(code) {
-  if (departementsActifs.has(code)) departementsActifs.delete(code);
-  else departementsActifs.add(code);
+function majDepartements() {
   // Jamais de liste vide : si tout est décoché, on rallume tout
   if (!departementsActifs.size) CODES.forEach((c) => departementsActifs.add(c));
   boutonsDepartements.querySelectorAll('button').forEach((b) =>
@@ -191,6 +190,19 @@ function basculerDepartement(code) {
   premierAffichage = false;
   construireCommunes();
   afficher();
+}
+
+function basculerDepartement(code) {
+  if (departementsActifs.has(code)) departementsActifs.delete(code);
+  else departementsActifs.add(code);
+  majDepartements();
+}
+
+// Sur téléphone, le filtre département n'existe pas : tout doit être affiché
+function toutAfficherSurTelephone() {
+  if (!telephone.matches || departementsActifs.size === CODES.length) return;
+  CODES.forEach((c) => departementsActifs.add(c));
+  majDepartements();
 }
 
 function construireCommunes() {
@@ -255,7 +267,7 @@ function afficher() {
     bouton.innerHTML =
       `<span class="rang">${i + 1}</span>` +
       '<span class="infos"><span class="ville"></span><span class="adresse"></span><span class="fraicheur"></span></span>' +
-      `<span class="prix ${classe}"><b>${virgule(s.gazole_prix)}</b><small>${NOMS_PALIER[classe]} · €/L</small></span>`;
+      `<span class="prix ${classe}"><b>${virgule(s.gazole_prix)}</b><small>${NOMS_PALIER[classe]}</small></span>`;
     bouton.querySelector('.ville').textContent = s.ville;
     bouton.querySelector('.adresse').textContent = `${s.adresse.toLowerCase()} · ${nomDepartement}`;
     const f = bouton.querySelector('.fraicheur');
@@ -274,6 +286,12 @@ function afficher() {
     entrees.push(entree);
   });
 
+  const credit = document.createElement('li');
+  credit.className = 'credit';
+  credit.textContent = 'Données : prix-carburants.gouv.fr (Licence Ouverte 2.0), actualisées toutes les 10 min environ.';
+  liste.appendChild(credit);
+
+  boutonEffacer.hidden = !commune;
   liste.scrollTop = 0;
   ajusterAuAffichage = true;
   if (carteVisible()) ajusterCarte();
@@ -320,8 +338,15 @@ carte.on('zoomend', () => {
     entrees.forEach(majIcone);
   }
 });
+boutonEffacer.addEventListener('click', () => {
+  selectCommune.value = '';
+  premierAffichage = false;
+  afficher();
+  selectCommune.focus();   // le bouton vient de disparaître : le focus ne doit pas se perdre
+});
 telephone.addEventListener('change', () => {
-  if (!telephone.matches) carte.invalidateSize();
+  toutAfficherSurTelephone();
+  carte.invalidateSize();
 });
 
 construireDepartements();
