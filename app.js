@@ -5,8 +5,21 @@ const JOURS_ANCIEN = 3;    // un prix plus vieux est signalé en toutes lettres
 const COULEURS = { vert: '#1b7a3e', orange: '#a8500a', rouge: '#b3261e' };
 const NOMS_PALIER = { vert: 'Bas', orange: 'Moyen', rouge: 'Haut' };
 
+// Le Rhône et les départements qui le touchent
+const LISTE_DEPARTEMENTS = [
+  ['01', 'Ain'],
+  ['38', 'Isère'],
+  ['42', 'Loire'],
+  ['69', 'Rhône'],
+  ['71', 'Saône-et-Loire'],
+];
+const DEPARTEMENTS = Object.fromEntries(LISTE_DEPARTEMENTS);
+const CODES = LISTE_DEPARTEMENTS.map(([code]) => code);
+const DEPARTEMENT_DE_DEPART = '69';
+
 const liste = document.getElementById('liste');
 const selectCommune = document.getElementById('commune');
+const boutonsDepartements = document.getElementById('departements');
 const resume = document.getElementById('resume');
 const principal = document.querySelector('main');
 const boutonsVue = document.querySelectorAll('.vues button');
@@ -23,13 +36,17 @@ let stations = [];
 let entrees = [];          // { station, classe, marqueur, bouton }
 let choisie = null;
 let ajusterAuAffichage = false;
+let premierAffichage = true;   // la carte s'ouvre sur le Rhône, pas sur toute la région
+let modePrix = carte.getZoom() >= ZOOM_PRIX;
+const departementsActifs = new Set(CODES);
 
 /* ---------- Données ---------- */
 
 async function chargerPage(debut) {
+  const codes = CODES.map((c) => `"${c}"`).join(',');
   const params = new URLSearchParams({
-    where: 'code_departement="69" and gazole_prix is not null',
-    select: 'id,ville,adresse,cp,geom,gazole_prix,gazole_maj',
+    where: `code_departement in (${codes}) and gazole_prix is not null`,
+    select: 'id,ville,adresse,cp,code_departement,geom,gazole_prix,gazole_maj',
     order_by: 'id',
     limit: PAGE,
     offset: debut,
@@ -41,11 +58,14 @@ async function chargerPage(debut) {
 
 async function chargerStations() {
   const premiere = await chargerPage(0);
-  let tout = premiere.results;
+  const suivantes = [];
   for (let debut = PAGE; debut < premiere.total_count; debut += PAGE) {
-    tout = tout.concat((await chargerPage(debut)).results);
+    suivantes.push(chargerPage(debut));
   }
-  return tout.filter((s) => s.geom);
+  const pages = await Promise.all(suivantes);
+  return premiere.results
+    .concat(...pages.map((p) => p.results))
+    .filter((s) => s.geom);
 }
 
 /* ---------- Mise en forme ---------- */
@@ -89,9 +109,8 @@ function icone(entree, zoom) {
   });
 }
 
-function rafraichirIcones() {
-  const zoom = carte.getZoom();
-  entrees.forEach((e) => e.marqueur.setIcon(icone(e, zoom)));
+function majIcone(entree) {
+  entree.marqueur.setIcon(icone(entree, carte.getZoom()));
 }
 
 function carteVisible() {
@@ -100,7 +119,12 @@ function carteVisible() {
 
 function ajusterCarte() {
   carte.invalidateSize();
-  const points = entrees.map((e) => e.marqueur.getLatLng());
+  let retenues = entrees;
+  if (premierAffichage) {
+    const rhone = entrees.filter((e) => e.station.code_departement === DEPARTEMENT_DE_DEPART);
+    if (rhone.length) retenues = rhone;
+  }
+  const points = retenues.map((e) => e.marqueur.getLatLng());
   if (points.length) carte.fitBounds(points, { padding: [40, 40], maxZoom: 14 });
   ajusterAuAffichage = false;
 }
@@ -126,10 +150,11 @@ function choisir(entree, { depuisCarte = false } = {}) {
   if (precedente) {
     precedente.bouton.removeAttribute('aria-current');
     precedente.marqueur.setZIndexOffset(0);
+    majIcone(precedente);
   }
   entree.bouton.setAttribute('aria-current', 'true');
   entree.marqueur.setZIndexOffset(2000);
-  rafraichirIcones();
+  majIcone(entree);
 
   if (depuisCarte) {
     entree.bouton.scrollIntoView({ block: 'nearest' });
@@ -140,17 +165,60 @@ function choisir(entree, { depuisCarte = false } = {}) {
   }
 }
 
+/* ---------- Filtres ---------- */
+
+function construireDepartements() {
+  boutonsDepartements.innerHTML = '';
+  CODES.forEach((code) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.dataset.code = code;
+    b.setAttribute('aria-pressed', 'true');
+    b.textContent = DEPARTEMENTS[code];
+    b.title = `${DEPARTEMENTS[code]} (${code})`;
+    b.addEventListener('click', () => basculerDepartement(code));
+    boutonsDepartements.appendChild(b);
+  });
+}
+
+function basculerDepartement(code) {
+  if (departementsActifs.has(code)) departementsActifs.delete(code);
+  else departementsActifs.add(code);
+  // Jamais de liste vide : si tout est décoché, on rallume tout
+  if (!departementsActifs.size) CODES.forEach((c) => departementsActifs.add(c));
+  boutonsDepartements.querySelectorAll('button').forEach((b) =>
+    b.setAttribute('aria-pressed', String(departementsActifs.has(b.dataset.code))));
+  premierAffichage = false;
+  construireCommunes();
+  afficher();
+}
+
+function construireCommunes() {
+  const avant = selectCommune.value;
+  selectCommune.length = 1;
+  const vues = new Map();
+  stations
+    .filter((s) => departementsActifs.has(s.code_departement))
+    .forEach((s) => vues.set(`${s.code_departement}|${s.ville}`, s));
+  [...vues.entries()]
+    .sort((a, b) => a[1].ville.localeCompare(b[1].ville, 'fr'))
+    .forEach(([cle, s]) => selectCommune.add(new Option(`${s.ville} (${s.code_departement})`, cle)));
+  selectCommune.value = vues.has(avant) ? avant : '';
+}
+
 /* ---------- Affichage ---------- */
 
 function afficher() {
   const commune = selectCommune.value;
-  const visibles = stations
-    .filter((s) => !commune || s.ville === commune)
+  const dansDepartements = stations.filter((s) => departementsActifs.has(s.code_departement));
+  const visibles = dansDepartements
+    .filter((s) => !commune || `${s.code_departement}|${s.ville}` === commune)
     .sort((a, b) => a.gazole_prix - b.gazole_prix);
 
-  const prixRhone = stations.map((s) => s.gazole_prix);
-  const min = Math.min(...prixRhone);
-  const max = Math.max(...prixRhone);
+  // Les paliers se calculent sur tous les départements cochés, pour rester comparables
+  const prixRepere = dansDepartements.map((s) => s.gazole_prix);
+  const min = Math.min(...prixRepere);
+  const max = Math.max(...prixRepere);
 
   liste.innerHTML = '';
   liste.removeAttribute('aria-busy');
@@ -169,6 +237,7 @@ function afficher() {
     }).addTo(calque);
 
     const frais = fraicheur(s.gazole_maj);
+    const nomDepartement = DEPARTEMENTS[s.code_departement];
     const popup = document.createElement('div');
     popup.className = 'popup';
     popup.innerHTML = '<strong></strong><br><span class="adr"></span><span class="popup-prix"></span><small></small>';
@@ -188,7 +257,7 @@ function afficher() {
       '<span class="infos"><span class="ville"></span><span class="adresse"></span><span class="fraicheur"></span></span>' +
       `<span class="prix ${classe}"><b>${virgule(s.gazole_prix)}</b><small>${NOMS_PALIER[classe]} · €/L</small></span>`;
     bouton.querySelector('.ville').textContent = s.ville;
-    bouton.querySelector('.adresse').textContent = s.adresse.toLowerCase();
+    bouton.querySelector('.adresse').textContent = `${s.adresse.toLowerCase()} · ${nomDepartement}`;
     const f = bouton.querySelector('.fraicheur');
     f.textContent = frais.texte;
     if (frais.ancien) f.classList.add('ancien');
@@ -233,19 +302,27 @@ function demarrer() {
   chargerStations()
     .then((donnees) => {
       stations = donnees;
-      selectCommune.length = 1;
-      [...new Set(stations.map((s) => s.ville))]
-        .sort((a, b) => a.localeCompare(b, 'fr'))
-        .forEach((c) => selectCommune.add(new Option(c, c)));
+      construireCommunes();
       afficher();
     })
     .catch(erreur);
 }
 
-selectCommune.addEventListener('change', afficher);
-carte.on('zoomend', rafraichirIcones);
+selectCommune.addEventListener('change', () => {
+  premierAffichage = false;
+  afficher();
+});
+carte.on('zoomend', () => {
+  // Les icônes ne changent de forme (point ou prix) qu'en franchissant le seuil de zoom
+  const prix = carte.getZoom() >= ZOOM_PRIX;
+  if (prix !== modePrix) {
+    modePrix = prix;
+    entrees.forEach(majIcone);
+  }
+});
 telephone.addEventListener('change', () => {
   if (!telephone.matches) carte.invalidateSize();
 });
 
+construireDepartements();
 demarrer();

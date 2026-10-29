@@ -4,20 +4,26 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#10262b">
-  <title>Gazole Rhône</title>
+  <title>Gazole Rhône-Alpes</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header class="entete">
     <div class="titre">
-      <h1>Gazole <span>Rhône</span></h1>
+      <h1>Gazole <span>Rhône-Alpes</span></h1>
       <p id="resume" aria-live="polite">Chargement des prix…</p>
     </div>
-    <label class="champ">
-      <span>Commune</span>
-      <select id="commune"><option value="">Toutes les communes</option></select>
-    </label>
+    <div class="filtres">
+      <div class="champ" role="group" aria-labelledby="lib-departements">
+        <span id="lib-departements">Départements</span>
+        <div id="departements" class="departements"></div>
+      </div>
+      <label class="champ">
+        <span>Commune</span>
+        <select id="commune"><option value="">Toutes les communes</option></select>
+      </label>
+    </div>
   </header>
 
   <div class="vues" role="group" aria-label="Affichage">
