@@ -14,7 +14,11 @@
   <section id="accueil" role="dialog" aria-modal="true" aria-labelledby="accueil-titre">
     <div class="accueil-contenu">
       <h2 id="accueil-titre" tabindex="-1">La pétrolette des <span>chouquettes</span></h2>
-      <p class="accueil-texte">Retrouve le prix du gazole dans les stations du Rhône et des départements limitrophes. Les prix sont actualisés toutes les <strong>10 minutes</strong>.</p>
+      <p class="accueil-texte">Retrouve le prix des carburants dans les stations du Rhône et des départements limitrophes. Les prix sont actualisés toutes les <strong>10 minutes</strong>.</p>
+      <fieldset class="carburants">
+        <legend class="etiquette">Ton carburant</legend>
+        <div id="accueil-carburants" class="carburants-liste"></div>
+      </fieldset>
       <form id="accueil-form" novalidate>
         <label class="etiquette" for="accueil-commune">Ta commune (facultatif)</label>
         <input id="accueil-commune" type="text" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="search" maxlength="60">

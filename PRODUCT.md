@@ -16,30 +16,30 @@ Public, mostly drivers of diesel cars in the Rhône (69) and the four department
 
 ## Product Purpose
 
-List every station of the Rhône and its four neighbouring departments that sells diesel (gazole) with its current price, filterable by department and commune, with a map. Success: a visitor finds the cheapest nearby diesel in a glance and goes there.
+List every station of the Rhône and its four neighbouring departments that sells the visitor's chosen fuel (gazole by default; also SP95-E10, SP98, E85, SP95, GPL) with its current price, filterable by department and commune, with a map. Success: a visitor finds the cheapest nearby fuel in a glance and goes there.
 
 ## Positioning
 
-Diesel only, Rhône and neighbouring departments only, official prices (prix-carburants.gouv.fr open data, refreshed about every 10 minutes), no account, no ads: a narrow, fast comparison tool rather than a general fuel portal.
+Rhône and neighbouring departments only, one fuel at a time (diesel first), official prices (prix-carburants.gouv.fr open data, refreshed about every 10 minutes), no account, no ads: a narrow, fast comparison tool rather than a general fuel portal.
 
 ## Operating Context
 
-Data fetched live in the browser on every open from data.economie.gouv.fr (Licence Ouverte 2.0), about 720 stations across 5 departments (about 190 in the Rhône). Prices carry an update date that can be days old, which matters for trust.
+Data fetched live in the browser on every open from data.economie.gouv.fr (Licence Ouverte 2.0), about 780 stations across 5 departments (about 190 in the Rhône), of which about 720 sell diesel, 590 SP95-E10, 580 SP98, 300 E85, 220 SP95 and 100 GPL. Prices carry an update date that can be days old, which matters for trust.
 
 ## Capabilities and Constraints
 
 - Ranked list (cheapest first) with price tiers green / orange / red relative to the Rhône range.
 - Department toggle buttons (all on by default, desktop only: on phones every department is always shown), then a commune selector limited to the chosen departments, with a "× Toutes" button next to it that resets the commune in one tap; the map opens centred on the Rhône. Clicking a station focuses the map and opens its popup (name, address, price, update date).
 - Map right of the list on desktop, above the list on phone.
-- First visit: a full-screen welcome explains the purpose (diesel prices in the Rhône and bordering departments, refreshed about every 10 minutes) and offers either to type a commune (the map zooms on it, the list keeps every station) or to enter with "J'ai compris". An unknown or out-of-zone commune gets "Connais-tu ta géographie ?". The welcome is remembered in `localStorage` (`accueil-vu`) and can be reopened with the "?" button.
+- First visit: a full-screen welcome explains the purpose (fuel prices in the Rhône and bordering departments, refreshed about every 10 minutes), lets the visitor choose a fuel (gazole preselected; only stations selling it, and only its prices, are shown everywhere; the choice is remembered in `localStorage` key `carburant` and the current fuel is named in the summary line) and offers either to type a commune (the map zooms on it, the list keeps every station) or to enter with "J'ai compris". An unknown or out-of-zone commune gets "Connais-tu ta géographie ?". The welcome is remembered in `localStorage` (`accueil-vu`) and can be reopened with the "?" button.
 - Commune lookup uses geo.api.gouv.fr (public, no key); the typed text is the only user data that leaves the browser.
 - Phones only: a "Y aller" link on each station (in its map popup and on the selected list row) opens the phone's maps app with driving directions to the station (Apple Plans on iPhone, Google Maps elsewhere).
-- Fuel: gazole only. Language: French.
+- Fuel: one at a time, changed through the "?" welcome. Language: French.
 - Must keep working without a server; no API key.
 
 ## Brand Commitments
 
-None established. Title "La pétrolette des chouquettes" (the user's wording; the project repo is called "diesel"). Tone of voice: informal "tu" ("Retrouve le prix du gazole…", "Connais-tu ta géographie ?").
+None established. Title "La pétrolette des chouquettes" (the user's wording; the project repo is called "diesel"). Tone of voice: informal "tu" ("Retrouve le prix des carburants…", "Connais-tu ta géographie ?").
 
 ## Evidence on Hand
 

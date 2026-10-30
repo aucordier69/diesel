@@ -34,8 +34,33 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 const calque = L.layerGroup().addTo(carte);
 const calqueCommune = L.layerGroup().addTo(carte);   // repère de la commune cherchée à l'accueil
 
-const ZOOM_COMMUNE = 15;       // quelques rues autour du centre de la commune ; pastilles-prix affichées
+const ZOOM_COMMUNE = 14;       // un quartier autour du centre de la commune ; pastilles-prix affichées
 const CLE_ACCUEIL = 'accueil-vu';
+const CLE_CARBURANT = 'carburant';
+
+// Les carburants de l'État (champs `<code>_prix` et `<code>_maj` de l'API), gazole d'abord
+const CARBURANTS = [
+  ['gazole', 'Gazole'],
+  ['e10', 'SP95-E10'],
+  ['sp98', 'SP98'],
+  ['e85', 'E85'],
+  ['sp95', 'SP95'],
+  ['gplc', 'GPL'],
+];
+const NOMS_CARBURANTS = Object.fromEntries(CARBURANTS);
+
+function lireCarburant() {
+  try {
+    const code = localStorage.getItem(CLE_CARBURANT);
+    if (NOMS_CARBURANTS[code]) return code;
+  } catch (e) { /* stockage bloqué : gazole */ }
+  return 'gazole';
+}
+
+let carburant = lireCarburant();
+// Tous les carburants sont chargés une fois ; ces deux fonctions lisent celui qui est choisi
+const prixDe = (s) => s[`${carburant}_prix`];
+const majDe = (s) => s[`${carburant}_maj`];
 
 let zoneChoisie = null;        // commune cherchée avant l'arrivée des prix : ajusterCarte() la respecte une fois
 let stations = [];
@@ -51,8 +76,9 @@ const departementsActifs = new Set(CODES);
 async function chargerPage(debut) {
   const codes = CODES.map((c) => `"${c}"`).join(',');
   const params = new URLSearchParams({
-    where: `code_departement in (${codes}) and gazole_prix is not null`,
-    select: 'id,ville,adresse,cp,code_departement,geom,gazole_prix,gazole_maj',
+    where: `code_departement in (${codes})`,
+    select: ['id', 'ville', 'adresse', 'cp', 'code_departement', 'geom',
+      ...CARBURANTS.flatMap(([code]) => [`${code}_prix`, `${code}_maj`])].join(','),
     order_by: 'id',
     limit: PAGE,
     offset: debut,
@@ -125,7 +151,7 @@ function icone(entree, zoom) {
   if (zoom >= ZOOM_PRIX) {
     return L.divIcon({
       className: '',
-      html: `<div class="pastille-prix${choix}" style="width:70px;height:28px"><i style="background:${COULEURS[classe]}"></i>${virgule(station.gazole_prix)}</div>`,
+      html: `<div class="pastille-prix${choix}" style="width:70px;height:28px"><i style="background:${COULEURS[classe]}"></i>${virgule(prixDe(station))}</div>`,
       iconSize: [70, 28],
       iconAnchor: [35, 14],
     });
@@ -249,7 +275,7 @@ function construireCommunes() {
   selectCommune.length = 1;
   const vues = new Map();
   stations
-    .filter((s) => departementsActifs.has(s.code_departement))
+    .filter((s) => departementsActifs.has(s.code_departement) && prixDe(s) != null)
     .forEach((s) => vues.set(`${s.code_departement}|${s.ville}`, s));
   [...vues.entries()]
     .sort((a, b) => a[1].ville.localeCompare(b[1].ville, 'fr'))
@@ -259,15 +285,17 @@ function construireCommunes() {
 
 /* ---------- Affichage ---------- */
 
-function afficher() {
+// garderCarte : changer de carburant ne doit pas faire bouger la carte
+function afficher({ garderCarte = false } = {}) {
   const commune = selectCommune.value;
-  const dansDepartements = stations.filter((s) => departementsActifs.has(s.code_departement));
+  // Seules les stations qui vendent le carburant choisi sont affichées
+  const dansDepartements = stations.filter((s) => departementsActifs.has(s.code_departement) && prixDe(s) != null);
   const visibles = dansDepartements
     .filter((s) => !commune || `${s.code_departement}|${s.ville}` === commune)
-    .sort((a, b) => a.gazole_prix - b.gazole_prix);
+    .sort((a, b) => prixDe(a) - prixDe(b));
 
   // Les paliers se calculent sur tous les départements cochés, pour rester comparables
-  const prixRepere = dansDepartements.map((s) => s.gazole_prix);
+  const prixRepere = dansDepartements.map(prixDe);
   const min = Math.min(...prixRepere);
   const max = Math.max(...prixRepere);
 
@@ -278,23 +306,23 @@ function afficher() {
   choisie = null;
 
   visibles.forEach((s, i) => {
-    const classe = palier(s.gazole_prix, min, max);
+    const classe = palier(prixDe(s), min, max);
     const entree = { station: s, classe };
 
     entree.marqueur = L.marker([s.geom.lat, s.geom.lon], {
       icon: icone(entree, carte.getZoom()),
       zIndexOffset: 1000 - i,
-      title: `${s.ville}, ${virgule(s.gazole_prix)} € le litre`,
+      title: `${s.ville}, ${virgule(prixDe(s))} € le litre`,
     }).addTo(calque);
 
-    const frais = fraicheur(s.gazole_maj);
+    const frais = fraicheur(majDe(s));
     const nomDepartement = DEPARTEMENTS[s.code_departement];
     const popup = document.createElement('div');
     popup.className = 'popup';
     popup.innerHTML = '<strong></strong><br><span class="adr"></span><span class="popup-prix"></span><small></small>';
     popup.querySelector('strong').textContent = s.ville;
     popup.querySelector('.adr').textContent = `${s.adresse}, ${s.cp}`;
-    popup.querySelector('.popup-prix').textContent = `${virgule(s.gazole_prix)} €/L`;
+    popup.querySelector('.popup-prix').textContent = `${virgule(prixDe(s))} €/L`;
     popup.querySelector('small').textContent = frais.texte;
     popup.appendChild(lienYAller(s));
     entree.marqueur.bindPopup(popup);
@@ -307,13 +335,13 @@ function afficher() {
     bouton.innerHTML =
       `<span class="rang">${i + 1}</span>` +
       '<span class="infos"><span class="ville"></span><span class="adresse"></span><span class="fraicheur"></span></span>' +
-      `<span class="prix ${classe}"><b>${virgule(s.gazole_prix)}</b><small>${NOMS_PALIER[classe]}</small></span>`;
+      `<span class="prix ${classe}"><b>${virgule(prixDe(s))}</b><small>${NOMS_PALIER[classe]}</small></span>`;
     bouton.querySelector('.ville').textContent = s.ville;
     bouton.querySelector('.adresse').textContent = `${s.adresse.toLowerCase()} · ${nomDepartement}`;
     const f = bouton.querySelector('.fraicheur');
     f.textContent = frais.texte;
     if (frais.ancien) f.classList.add('ancien');
-    if (s.gazole_prix === min) {
+    if (prixDe(s) === min) {
       const tag = document.createElement('span');
       tag.className = 'meilleur';
       tag.textContent = 'Le moins cher';
@@ -334,14 +362,16 @@ function afficher() {
 
   boutonEffacer.hidden = !commune;
   liste.scrollTop = 0;
-  ajusterAuAffichage = true;
-  if (carteVisible()) ajusterCarte();
+  if (!garderCarte) {
+    ajusterAuAffichage = true;
+    if (carteVisible()) ajusterCarte();
+  }
 
   if (visibles.length) {
-    const prix = visibles.map((s) => s.gazole_prix);
-    resume.textContent = `${visibles.length} station${visibles.length > 1 ? 's' : ''} · de ${virgule(Math.min(...prix))} à ${virgule(Math.max(...prix))} € le litre`;
+    const prix = visibles.map(prixDe);
+    resume.textContent = `${NOMS_CARBURANTS[carburant]} · ${visibles.length} station${visibles.length > 1 ? 's' : ''} · de ${virgule(Math.min(...prix))} à ${virgule(Math.max(...prix))} € le litre`;
   } else {
-    resume.textContent = 'Aucune station.';
+    resume.textContent = `${NOMS_CARBURANTS[carburant]} · aucune station ne le vend ici.`;
   }
 }
 
@@ -401,6 +431,7 @@ const boutonAccueilRecherche = formAccueil.querySelector('button[type="submit"]'
 const messageAccueil = document.getElementById('accueil-message');
 const boutonAccueilFermer = document.getElementById('accueil-fermer');
 const boutonAide = document.getElementById('aide');
+const conteneurCarburants = document.getElementById('accueil-carburants');
 // Tant que l'accueil est ouvert, le reste de la page n'est ni focalisable ni lisible par un lecteur d'écran
 const zonesDerriere = ['.entete', 'main', '.vues', 'footer'].map((s) => document.querySelector(s));
 
@@ -408,6 +439,31 @@ const accueilOuvert = () => !document.documentElement.classList.contains('accuei
 
 function ecrireVu() {
   try { localStorage.setItem(CLE_ACCUEIL, '1'); } catch (e) { /* stockage bloqué : l'accueil reviendra, sans gravité */ }
+}
+
+function construireCarburants() {
+  conteneurCarburants.replaceChildren(...CARBURANTS.map(([code, nom]) => {
+    const puce = document.createElement('label');
+    puce.className = 'puce';
+    const radio = document.createElement('input');
+    radio.type = 'radio';
+    radio.name = 'carburant';
+    radio.value = code;
+    radio.checked = code === carburant;
+    radio.addEventListener('change', () => changerCarburant(code));
+    const texte = document.createElement('span');
+    texte.textContent = nom;
+    puce.append(radio, texte);
+    return puce;
+  }));
+}
+
+function changerCarburant(code) {
+  carburant = code;
+  try { localStorage.setItem(CLE_CARBURANT, code); } catch (e) { /* stockage bloqué : le choix ne sera pas retenu, sans gravité */ }
+  if (!stations.length) return;   // les prix arrivent : demarrer() utilisera le carburant choisi
+  construireCommunes();
+  afficher({ garderCarte: true });
 }
 
 function ouvrirAccueil() {
@@ -536,5 +592,6 @@ document.addEventListener('keydown', (e) => {
 });
 
 construireDepartements();
+construireCarburants();
 if (accueilOuvert()) ouvrirAccueil();
 demarrer();
