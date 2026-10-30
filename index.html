@@ -8,25 +8,25 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
   <link rel="stylesheet" href="style.css">
   <!-- Évite l'éclair de l'accueil pour qui l'a déjà vu (même clé que CLE_ACCUEIL dans app.js) -->
-  <script>try { if (localStorage.getItem('accueil-vu') === '1') document.documentElement.classList.add('accueil-vu'); } catch (e) {}</script>
+  <script>try { if (localStorage.getItem('accueil-vu-2') === '1') document.documentElement.classList.add('accueil-vu'); } catch (e) {}</script>
 </head>
 <body>
   <section id="accueil" role="dialog" aria-modal="true" aria-labelledby="accueil-titre">
     <div class="accueil-contenu">
       <h2 id="accueil-titre" tabindex="-1">La pétrolette des <span>chouquettes</span></h2>
-      <p class="accueil-texte">Retrouve le prix des carburants dans les stations du Rhône et des départements limitrophes. Les prix sont actualisés toutes les <strong>10 minutes</strong>.</p>
+      <p class="accueil-texte">Retrouve les prix de ton carburant dans les stations du Rhône et les départements limitrophes.</p>
       <fieldset class="carburants">
         <legend class="etiquette">Ton carburant</legend>
         <div id="accueil-carburants" class="carburants-liste"></div>
       </fieldset>
       <form id="accueil-form" novalidate>
-        <label class="etiquette" for="accueil-commune">Ta commune (facultatif)</label>
+        <label class="etiquette" for="accueil-commune">Commune (facultatif)</label>
         <input id="accueil-commune" type="text" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="search" maxlength="60">
-        <button type="submit" class="bouton-principal">Zoomer sur ma commune</button>
+        <button type="submit" class="bouton-principal">go</button>
       </form>
       <div id="accueil-message" class="accueil-message" aria-live="polite"></div>
       <p class="accueil-ou" aria-hidden="true">ou</p>
-      <button type="button" id="accueil-fermer" class="bouton-secondaire">J’ai compris</button>
+      <button type="button" id="accueil-fermer" class="bouton-secondaire">go (sans commune)</button>
     </div>
   </section>
 

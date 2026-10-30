@@ -34,8 +34,8 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 const calque = L.layerGroup().addTo(carte);
 const calqueCommune = L.layerGroup().addTo(carte);   // repère de la commune cherchée à l'accueil
 
-const ZOOM_COMMUNE = 14;       // un quartier autour du centre de la commune ; pastilles-prix affichées
-const CLE_ACCUEIL = 'accueil-vu';
+const ZOOM_COMMUNE = 13;       // une commune et ses abords ; pastilles-prix affichées
+const CLE_ACCUEIL = 'accueil-vu-2';   // à changer quand l'accueil évolue : il réapparaît alors une fois pour tous
 const CLE_CARBURANT = 'carburant';
 
 // Les carburants de l'État (champs `<code>_prix` et `<code>_maj` de l'API), gazole d'abord
@@ -58,9 +58,16 @@ function lireCarburant() {
 }
 
 let carburant = lireCarburant();
-// Tous les carburants sont chargés une fois ; ces deux fonctions lisent celui qui est choisi
-const prixDe = (s) => s[`${carburant}_prix`];
-const majDe = (s) => s[`${carburant}_maj`];
+
+// Un seul carburant est chargé à la fois (celui qui est choisi) : c'est ce qui rend le site rapide.
+// Pages à demander d'emblée, toutes en parallèle (un peu au-dessus des comptes actuels de stations)
+const PAGES_ATTENDUES = { gazole: 8, e10: 6, sp98: 6, e85: 4, sp95: 3, gplc: 1 };
+const DUREE_CACHE = 10 * 60 * 1000;   // les prix sont actualisés toutes les 10 minutes
+const cachePrix = new Map();          // code du carburant → { stations, instant }
+let versionChargement = 0;            // ignore la réponse d'un carburant déjà abandonné
+let controleChargement = null;
+let enChargement = false;
+let premiereCharge = true;            // la toute première arrivée de prix recadre la carte sur le Rhône
 
 let zoneChoisie = null;        // commune cherchée avant l'arrivée des prix : ajusterCarte() la respecte une fois
 let stations = [];
@@ -73,31 +80,43 @@ const departementsActifs = new Set(CODES);
 
 /* ---------- Données ---------- */
 
-async function chargerPage(debut) {
+async function chargerPage(code, debut, signal) {
   const codes = CODES.map((c) => `"${c}"`).join(',');
   const params = new URLSearchParams({
-    where: `code_departement in (${codes})`,
-    select: ['id', 'ville', 'adresse', 'cp', 'code_departement', 'geom',
-      ...CARBURANTS.flatMap(([code]) => [`${code}_prix`, `${code}_maj`])].join(','),
+    where: `code_departement in (${codes}) and ${code}_prix is not null`,
+    select: `id,ville,adresse,cp,code_departement,geom,${code}_prix,${code}_maj`,
     order_by: 'id',
     limit: PAGE,
     offset: debut,
   });
-  const reponse = await fetch(`${API}?${params}`);
+  const reponse = await fetch(`${API}?${params}`, { signal });
   if (!reponse.ok) throw new Error(`Erreur ${reponse.status}`);
   return reponse.json();
 }
 
-async function chargerStations() {
-  const premiere = await chargerPage(0);
-  const suivantes = [];
-  for (let debut = PAGE; debut < premiere.total_count; debut += PAGE) {
-    suivantes.push(chargerPage(debut));
+// Les stations d'un seul carburant, ramenées à { …, prix, maj } : le reste du code ignore de quel carburant il s'agit
+async function chargerStations(code, signal) {
+  const pages = PAGES_ATTENDUES[code] || 1;
+  const reponses = await Promise.all(Array.from({ length: pages }, (_, i) => chargerPage(code, i * PAGE, signal)));
+  // Plus de stations que prévu : on complète
+  const manquantes = [];
+  for (let debut = pages * PAGE; debut < reponses[0].total_count; debut += PAGE) {
+    manquantes.push(chargerPage(code, debut, signal));
   }
-  const pages = await Promise.all(suivantes);
-  return premiere.results
-    .concat(...pages.map((p) => p.results))
-    .filter((s) => s.geom);
+  reponses.push(...await Promise.all(manquantes));
+  return reponses
+    .flatMap((r) => r.results)
+    .filter((s) => s.geom)
+    .map((s) => ({
+      id: s.id,
+      ville: s.ville,
+      adresse: s.adresse,
+      cp: s.cp,
+      code_departement: s.code_departement,
+      geom: s.geom,
+      prix: s[`${code}_prix`],
+      maj: s[`${code}_maj`],
+    }));
 }
 
 /* ---------- Mise en forme ---------- */
@@ -111,13 +130,15 @@ function palier(prix, min, max) {
   return 'rouge';
 }
 
+// Un seul formateur, créé une fois : toLocaleDateString() en recrée un à chaque appel (×716 = 150 ms perdues)
+const FORMAT_JOUR = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short' });
+
 function fraicheur(iso) {
   const heures = Math.max(0, Math.floor((Date.now() - new Date(iso)) / 3600000));
   const jours = Math.floor(heures / 24);
-  const date = new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
   if (heures < 1) return { texte: 'Prix de moins d’1 h', ancien: false };
   if (heures < 24) return { texte: `Prix d’il y a ${heures} h`, ancien: false };
-  return { texte: `Prix d’il y a ${jours} j (${date})`, ancien: jours >= JOURS_ANCIEN };
+  return { texte: `Prix d’il y a ${jours} j (${FORMAT_JOUR.format(new Date(iso))})`, ancien: jours >= JOURS_ANCIEN };
 }
 
 /* ---------- Itinéraire (téléphone) ---------- */
@@ -151,7 +172,7 @@ function icone(entree, zoom) {
   if (zoom >= ZOOM_PRIX) {
     return L.divIcon({
       className: '',
-      html: `<div class="pastille-prix${choix}" style="width:70px;height:28px"><i style="background:${COULEURS[classe]}"></i>${virgule(prixDe(station))}</div>`,
+      html: `<div class="pastille-prix${choix}" style="width:70px;height:28px"><i style="background:${COULEURS[classe]}"></i>${virgule(station.prix)}</div>`,
       iconSize: [70, 28],
       iconAnchor: [35, 14],
     });
@@ -172,7 +193,17 @@ function carteVisible() {
   return carte.getContainer().offsetParent !== null;
 }
 
+// Sur téléphone la carte est cachée au démarrage (vue Liste) : on ne pose les ~700 marqueurs dessus
+// que quand elle devient visible (garnirCarte), pas avant
+let carteGarnie = true;
+function garnirCarte() {
+  if (carteGarnie) return;
+  carteGarnie = true;
+  entrees.forEach((e) => calque.addLayer(e.marqueur));
+}
+
 function ajusterCarte() {
+  garnirCarte();
   carte.invalidateSize();
   // Tout mouvement de carte passe par ici et sans animation : Leaflet ignore un setView
   // demandé pendant une animation en cours (c'était le bug « le zoom ne marche pas »)
@@ -198,6 +229,7 @@ function montrerVue(vue) {
   principal.dataset.vue = vue;
   boutonsVue.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.vue === vue)));
   if (vue === 'carte') {
+    garnirCarte();
     carte.invalidateSize();
     if (ajusterAuAffichage) ajusterCarte();
   }
@@ -213,11 +245,15 @@ function choisir(entree, { depuisCarte = false } = {}) {
   if (precedente) {
     precedente.bouton.removeAttribute('aria-current');
     precedente.bouton.parentElement.classList.remove('ligne-choisie');
+    precedente.bouton.parentElement.querySelector('.y-aller')?.remove();
     precedente.marqueur.setZIndexOffset(0);
     majIcone(precedente);
   }
   entree.bouton.setAttribute('aria-current', 'true');
-  entree.bouton.parentElement.classList.add('ligne-choisie');   // révèle « Y aller » sur téléphone
+  const ligne = entree.bouton.parentElement;
+  ligne.classList.add('ligne-choisie');   // révèle « Y aller » sur téléphone
+  // Frère du bouton, pas dedans (un lien ne s'imbrique pas dans un bouton) ; créé seulement pour la ligne choisie
+  if (!ligne.querySelector('.y-aller')) ligne.appendChild(lienYAller(entree.station));
   entree.marqueur.setZIndexOffset(2000);
   majIcone(entree);
 
@@ -275,7 +311,7 @@ function construireCommunes() {
   selectCommune.length = 1;
   const vues = new Map();
   stations
-    .filter((s) => departementsActifs.has(s.code_departement) && prixDe(s) != null)
+    .filter((s) => departementsActifs.has(s.code_departement))
     .forEach((s) => vues.set(`${s.code_departement}|${s.ville}`, s));
   [...vues.entries()]
     .sort((a, b) => a[1].ville.localeCompare(b[1].ville, 'fr'))
@@ -285,17 +321,31 @@ function construireCommunes() {
 
 /* ---------- Affichage ---------- */
 
+// Contenu de la bulle d'une station, construit seulement quand elle s'ouvre (et non pour les 700 stations d'avance)
+function construirePopup(s) {
+  const popup = document.createElement('div');
+  popup.className = 'popup';
+  popup.innerHTML = '<strong></strong><br><span class="adr"></span><span class="popup-prix"></span><small></small>';
+  popup.querySelector('strong').textContent = s.ville;
+  popup.querySelector('.adr').textContent = `${s.adresse}, ${s.cp}`;
+  popup.querySelector('.popup-prix').textContent = `${virgule(s.prix)} €/L`;
+  popup.querySelector('small').textContent = fraicheur(s.maj).texte;
+  popup.appendChild(lienYAller(s));
+  return popup;
+}
+
 // garderCarte : changer de carburant ne doit pas faire bouger la carte
 function afficher({ garderCarte = false } = {}) {
+  if (enChargement) return;   // les prix arrivent : afficher() sera rappelé avec eux
   const commune = selectCommune.value;
-  // Seules les stations qui vendent le carburant choisi sont affichées
-  const dansDepartements = stations.filter((s) => departementsActifs.has(s.code_departement) && prixDe(s) != null);
+  // `stations` ne contient que le carburant choisi
+  const dansDepartements = stations.filter((s) => departementsActifs.has(s.code_departement));
   const visibles = dansDepartements
     .filter((s) => !commune || `${s.code_departement}|${s.ville}` === commune)
-    .sort((a, b) => prixDe(a) - prixDe(b));
+    .sort((a, b) => a.prix - b.prix);
 
   // Les paliers se calculent sur tous les départements cochés, pour rester comparables
-  const prixRepere = dansDepartements.map(prixDe);
+  const prixRepere = dansDepartements.map((s) => s.prix);
   const min = Math.min(...prixRepere);
   const max = Math.max(...prixRepere);
 
@@ -306,26 +356,18 @@ function afficher({ garderCarte = false } = {}) {
   choisie = null;
 
   visibles.forEach((s, i) => {
-    const classe = palier(prixDe(s), min, max);
+    const classe = palier(s.prix, min, max);
     const entree = { station: s, classe };
 
     entree.marqueur = L.marker([s.geom.lat, s.geom.lon], {
       icon: icone(entree, carte.getZoom()),
       zIndexOffset: 1000 - i,
-      title: `${s.ville}, ${virgule(prixDe(s))} € le litre`,
-    }).addTo(calque);
+      title: `${s.ville}, ${virgule(s.prix)} € le litre`,
+    });   // posé sur la carte par garnirCarte()
 
-    const frais = fraicheur(majDe(s));
+    const frais = fraicheur(s.maj);
     const nomDepartement = DEPARTEMENTS[s.code_departement];
-    const popup = document.createElement('div');
-    popup.className = 'popup';
-    popup.innerHTML = '<strong></strong><br><span class="adr"></span><span class="popup-prix"></span><small></small>';
-    popup.querySelector('strong').textContent = s.ville;
-    popup.querySelector('.adr').textContent = `${s.adresse}, ${s.cp}`;
-    popup.querySelector('.popup-prix').textContent = `${virgule(prixDe(s))} €/L`;
-    popup.querySelector('small').textContent = frais.texte;
-    popup.appendChild(lienYAller(s));
-    entree.marqueur.bindPopup(popup);
+    entree.marqueur.bindPopup(() => construirePopup(s));
     entree.marqueur.on('click', () => choisir(entree, { depuisCarte: true }));
 
     const li = document.createElement('li');
@@ -335,13 +377,13 @@ function afficher({ garderCarte = false } = {}) {
     bouton.innerHTML =
       `<span class="rang">${i + 1}</span>` +
       '<span class="infos"><span class="ville"></span><span class="adresse"></span><span class="fraicheur"></span></span>' +
-      `<span class="prix ${classe}"><b>${virgule(prixDe(s))}</b><small>${NOMS_PALIER[classe]}</small></span>`;
+      `<span class="prix ${classe}"><b>${virgule(s.prix)}</b><small>${NOMS_PALIER[classe]}</small></span>`;
     bouton.querySelector('.ville').textContent = s.ville;
     bouton.querySelector('.adresse').textContent = `${s.adresse.toLowerCase()} · ${nomDepartement}`;
     const f = bouton.querySelector('.fraicheur');
     f.textContent = frais.texte;
     if (frais.ancien) f.classList.add('ancien');
-    if (prixDe(s) === min) {
+    if (s.prix === min) {
       const tag = document.createElement('span');
       tag.className = 'meilleur';
       tag.textContent = 'Le moins cher';
@@ -349,7 +391,6 @@ function afficher({ garderCarte = false } = {}) {
     }
     bouton.addEventListener('click', () => choisir(entree));
     li.appendChild(bouton);
-    li.appendChild(lienYAller(s));   // frère du bouton, pas dedans : un lien ne s'imbrique pas dans un bouton
     liste.appendChild(li);
     entree.bouton = bouton;
     entrees.push(entree);
@@ -360,6 +401,9 @@ function afficher({ garderCarte = false } = {}) {
   credit.textContent = 'Données : prix-carburants.gouv.fr (Licence Ouverte 2.0), actualisées toutes les 10 min environ.';
   liste.appendChild(credit);
 
+  carteGarnie = false;
+  if (carteVisible()) garnirCarte();
+
   boutonEffacer.hidden = !commune;
   liste.scrollTop = 0;
   if (!garderCarte) {
@@ -368,7 +412,7 @@ function afficher({ garderCarte = false } = {}) {
   }
 
   if (visibles.length) {
-    const prix = visibles.map(prixDe);
+    const prix = visibles.map((s) => s.prix);
     resume.textContent = `${NOMS_CARBURANTS[carburant]} · ${visibles.length} station${visibles.length > 1 ? 's' : ''} · de ${virgule(Math.min(...prix))} à ${virgule(Math.max(...prix))} € le litre`;
   } else {
     resume.textContent = `${NOMS_CARBURANTS[carburant]} · aucune station ne le vend ici.`;
@@ -376,25 +420,58 @@ function afficher({ garderCarte = false } = {}) {
 }
 
 function erreur() {
+  enChargement = false;
   liste.removeAttribute('aria-busy');
   liste.innerHTML =
     '<li class="message"><p>Impossible de charger les prix pour le moment.</p>' +
     '<button type="button">Réessayer</button></li>';
-  liste.querySelector('button').addEventListener('click', demarrer);
-  resume.textContent = 'Prix indisponibles.';
+  liste.querySelector('button').addEventListener('click', () => chargerCarburant());
+  resume.textContent = `${NOMS_CARBURANTS[carburant]} · prix indisponibles.`;
 }
 
-function demarrer() {
-  resume.textContent = 'Chargement des prix…';
+// Ce qui s'affiche pendant que les prix du carburant choisi arrivent
+function etatChargement() {
+  enChargement = true;
+  stations = [];
+  entrees = [];
+  choisie = null;
+  calque.clearLayers();
+  resume.textContent = `${NOMS_CARBURANTS[carburant]} · chargement des prix…`;
   liste.setAttribute('aria-busy', 'true');
   liste.innerHTML = '<li class="squelette" aria-hidden="true"></li>'.repeat(6);
-  chargerStations()
-    .then((donnees) => {
-      stations = donnees;
-      construireCommunes();
-      afficher();
-    })
-    .catch(erreur);
+}
+
+function appliquerStations(donnees) {
+  enChargement = false;
+  stations = donnees;
+  construireCommunes();
+  const premiere = premiereCharge;
+  afficher({ garderCarte: !premiere });   // changer de carburant ne fait pas bouger la carte
+  if (!premiere) zoneChoisie = null;      // la commune demandée pendant le chargement est déjà à l'écran
+  premiereCharge = false;
+}
+
+// Charge les prix du carburant choisi, et de lui seul. Déjà chargé il y a moins de 10 minutes : aucun appel réseau.
+async function chargerCarburant() {
+  const code = carburant;
+  const version = ++versionChargement;
+  if (controleChargement) controleChargement.abort();   // un autre carburant était en cours : on l'abandonne
+  const enCache = cachePrix.get(code);
+  if (enCache && Date.now() - enCache.instant < DUREE_CACHE) {
+    appliquerStations(enCache.stations);
+    return;
+  }
+  controleChargement = new AbortController();
+  etatChargement();
+  try {
+    const donnees = await chargerStations(code, controleChargement.signal);
+    if (version !== versionChargement) return;   // réponse d'un carburant abandonné entre-temps
+    cachePrix.set(code, { stations: donnees, instant: Date.now() });
+    appliquerStations(donnees);
+  } catch (e) {
+    if (version !== versionChargement) return;   // annulé volontairement
+    erreur();
+  }
 }
 
 selectCommune.addEventListener('change', () => {
@@ -419,8 +496,12 @@ boutonEffacer.addEventListener('click', () => {
 });
 telephone.addEventListener('change', () => {
   toutAfficherSurTelephone();
+  if (carteVisible()) garnirCarte();
   carte.invalidateSize();
 });
+
+// Les prix passent avant tout : lancés ici, avant l'accueil, pour qu'un incident d'interface ne les empêche jamais
+chargerCarburant();
 
 /* ---------- Accueil ---------- */
 
@@ -459,11 +540,10 @@ function construireCarburants() {
 }
 
 function changerCarburant(code) {
+  if (code === carburant) return;
   carburant = code;
   try { localStorage.setItem(CLE_CARBURANT, code); } catch (e) { /* stockage bloqué : le choix ne sera pas retenu, sans gravité */ }
-  if (!stations.length) return;   // les prix arrivent : demarrer() utilisera le carburant choisi
-  construireCommunes();
-  afficher({ garderCarte: true });
+  chargerCarburant();   // les prix du nouveau carburant (ou ceux déjà en cache depuis moins de 10 min)
 }
 
 function ouvrirAccueil() {
@@ -555,7 +635,7 @@ async function envoyerAccueil(evenement) {
   evenement.preventDefault();
   const texte = champAccueil.value.trim();
   if (!texte) {
-    messageAccueil.replaceChildren(paragraphe('Écris le nom d’une commune, ou entre directement dans l’application.'));
+    messageAccueil.replaceChildren(paragraphe('Écris le nom d’une commune, ou touche « go (sans commune) ».'));
     return;
   }
   boutonAccueilRecherche.disabled = true;
@@ -568,7 +648,7 @@ async function envoyerAccueil(evenement) {
     return;
   } finally {
     boutonAccueilRecherche.disabled = false;
-    boutonAccueilRecherche.textContent = 'Zoomer sur ma commune';
+    boutonAccueilRecherche.textContent = 'go';
   }
   if (!trouvees.length) {
     messageAccueil.replaceChildren(
@@ -594,4 +674,3 @@ document.addEventListener('keydown', (e) => {
 construireDepartements();
 construireCarburants();
 if (accueilOuvert()) ouvrirAccueil();
-demarrer();

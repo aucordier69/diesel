@@ -190,7 +190,8 @@ main[data-vue="carte"] #liste { display: none; }
   background: var(--fond);
   scrollbar-color: var(--trait) transparent;
 }
-#liste li { border-bottom: 1px solid var(--trait); }
+/* Le navigateur ne met en page que les lignes proches de l'écran (700 lignes sinon) */
+#liste li { border-bottom: 1px solid var(--trait); content-visibility: auto; contain-intrinsic-size: auto 80px; }
 
 .ligne {
   display: grid;
