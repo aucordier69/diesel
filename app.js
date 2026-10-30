@@ -94,6 +94,29 @@ function fraicheur(iso) {
   return { texte: `Prix d’il y a ${jours} j (${date})`, ancien: jours >= JOURS_ANCIEN };
 }
 
+/* ---------- Itinéraire (téléphone) ---------- */
+
+const EST_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+  || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);   // iPad qui se présente en Mac
+
+// L'appli de cartes du téléphone : Plans sur iPhone, Google Maps ailleurs
+function urlItineraire(lat, lon, ios) {
+  if (ios) return `https://maps.apple.com/?daddr=${lat},${lon}&dirflg=d`;
+  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}&travelmode=driving`;
+}
+
+// Un vrai lien (il ouvre une autre application), masqué sur grand écran par le CSS
+function lienYAller(s) {
+  const a = document.createElement('a');
+  a.className = 'y-aller';
+  a.href = urlItineraire(s.geom.lat, s.geom.lon, EST_IOS);
+  a.target = '_blank';
+  a.rel = 'noopener';
+  a.setAttribute('aria-label', `Y aller : itinéraire vers ${s.ville}, ${s.adresse}`);
+  a.innerHTML = '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path d="M14 2 2 7.2l4.8 1.9L8.8 14z" fill="currentColor"/></svg>Y aller';
+  return a;
+}
+
 /* ---------- Carte ---------- */
 
 function icone(entree, zoom) {
@@ -125,9 +148,11 @@ function carteVisible() {
 
 function ajusterCarte() {
   carte.invalidateSize();
+  // Tout mouvement de carte passe par ici et sans animation : Leaflet ignore un setView
+  // demandé pendant une animation en cours (c'était le bug « le zoom ne marche pas »)
   if (zoneChoisie) {
     carte.setView([zoneChoisie.lat, zoneChoisie.lon], ZOOM_COMMUNE, { animate: false });
-    zoneChoisie = null;
+    if (stations.length) zoneChoisie = null;   // sinon on la garde : afficher() la respectera à l'arrivée des prix
     ajusterAuAffichage = false;
     return;
   }
@@ -137,7 +162,7 @@ function ajusterCarte() {
     if (rhone.length) retenues = rhone;
   }
   const points = retenues.map((e) => e.marqueur.getLatLng());
-  if (points.length) carte.fitBounds(points, { padding: [40, 40], maxZoom: 14 });
+  if (points.length) carte.fitBounds(points, { padding: [40, 40], maxZoom: 14, animate: false });
   ajusterAuAffichage = false;
 }
 
@@ -161,10 +186,12 @@ function choisir(entree, { depuisCarte = false } = {}) {
   choisie = entree.station.id;
   if (precedente) {
     precedente.bouton.removeAttribute('aria-current');
+    precedente.bouton.parentElement.classList.remove('ligne-choisie');
     precedente.marqueur.setZIndexOffset(0);
     majIcone(precedente);
   }
   entree.bouton.setAttribute('aria-current', 'true');
+  entree.bouton.parentElement.classList.add('ligne-choisie');   // révèle « Y aller » sur téléphone
   entree.marqueur.setZIndexOffset(2000);
   majIcone(entree);
 
@@ -269,6 +296,7 @@ function afficher() {
     popup.querySelector('.adr').textContent = `${s.adresse}, ${s.cp}`;
     popup.querySelector('.popup-prix').textContent = `${virgule(s.gazole_prix)} €/L`;
     popup.querySelector('small').textContent = frais.texte;
+    popup.appendChild(lienYAller(s));
     entree.marqueur.bindPopup(popup);
     entree.marqueur.on('click', () => choisir(entree, { depuisCarte: true }));
 
@@ -293,6 +321,7 @@ function afficher() {
     }
     bouton.addEventListener('click', () => choisir(entree));
     li.appendChild(bouton);
+    li.appendChild(lienYAller(s));   // frère du bouton, pas dedans : un lien ne s'imbrique pas dans un bouton
     liste.appendChild(li);
     entree.bouton = bouton;
     entrees.push(entree);
@@ -413,7 +442,8 @@ async function chercherCommune(texte) {
   try {
     const reponses = await Promise.all(CODES.map(async (code) => {
       const params = new URLSearchParams({
-        nom: texte,
+        // Les claviers de téléphone écrivent « ’ » ; l'API ne connaît que l'apostrophe droite
+        nom: texte.replace(/[’‘ʼ´`]/g, "'"),
         codeDepartement: code,
         fields: 'nom,centre,departement,population',
         boost: 'population',
@@ -442,13 +472,11 @@ function oublierZone() {
 function zoomerSur(commune) {
   const [lon, lat] = commune.centre.coordinates;
   fermerAccueil();
-  if (telephone.matches) montrerVue('carte');
   premierAffichage = false;
   oublierZone();
-  if (!stations.length) zoneChoisie = { lat, lon };   // les prix arrivent : ne pas rezoomer sur le Rhône
-  carte.invalidateSize();
-  carte.setView([lat, lon], ZOOM_COMMUNE, { animate: false });
-  ajusterAuAffichage = !stations.length;
+  zoneChoisie = { lat, lon };
+  if (telephone.matches) montrerVue('carte');   // peut déjà consommer la zone via ajusterCarte()
+  if (zoneChoisie) ajusterCarte();
   L.circleMarker([lat, lon], { radius: 9, color: '#fff', weight: 3, fillColor: '#1d4ed8', fillOpacity: 1 })
     .bindTooltip(commune.nom, { permanent: true, direction: 'top', offset: [0, -8], className: 'repere-commune' })
     .addTo(calqueCommune);

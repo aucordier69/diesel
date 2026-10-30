@@ -210,7 +210,28 @@ main[data-vue="carte"] #liste { display: none; }
 }
 .ligne:hover { background: #f9fafb; }
 .ligne:focus-visible { outline-offset: -3px; }
-.ligne[aria-current="true"] { background: var(--accent-pale); box-shadow: inset 0 0 0 2px var(--accent); }
+/* La ligne choisie : fond pâle et anneau sur tout le <li> (texte + bouton « Y aller ») */
+#liste li.ligne-choisie { background: var(--accent-pale); box-shadow: inset 0 0 0 2px var(--accent); }
+.ligne-choisie .ligne:hover { background: transparent; }
+
+/* « Y aller » : lien d'itinéraire, téléphone seulement (affiché dans le media query plus bas) */
+.y-aller {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  font-weight: 600;
+  text-decoration: none;
+  color: #fff;
+  background: var(--accent);
+  border-radius: var(--rayon);
+  transition: background-color 0.15s ease-out;
+}
+.leaflet-container a.y-aller { color: #fff; }   /* Leaflet colore tous les liens de la carte */
+.y-aller:hover { background: #1e40af; }
+.y-aller:active { background: #1e3a8a; }
 
 .rang { font-size: 0.875rem; color: var(--texte-doux); font-variant-numeric: tabular-nums; }
 .infos { min-width: 0; }
@@ -438,6 +459,8 @@ footer {
     box-shadow: 0 6px 20px rgba(17, 24, 39, 0.2);
   }
   #liste { padding-bottom: 96px; }
+  .popup .y-aller { display: flex; margin-top: 10px; }
+  .ligne-choisie .y-aller { display: flex; margin: 0 16px 16px; }
   .leaflet-bottom { margin-bottom: 72px; }
   /* Le crédit des données : attribution de la carte, et bas de la liste (la bascule flottante recouvrirait le pied de page) */
   footer { display: none; }
